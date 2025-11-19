@@ -41,6 +41,7 @@ const updateAutoReplyConfig = asyncHandler(async (req, res) => {
         req.body || {};
 
     const updates = {};
+    const previousSettings = sanitizeSettings(req.user.autoReplySettings);
 
     if (enabled !== undefined) updates['autoReplySettings.enabled'] = !!enabled;
 
@@ -62,12 +63,23 @@ const updateAutoReplyConfig = asyncHandler(async (req, res) => {
     if (respondToNeutral !== undefined) updates['autoReplySettings.respondToNeutral'] = !!respondToNeutral;
     if (respondToNegative !== undefined) updates['autoReplySettings.respondToNegative'] = !!respondToNegative;
 
-    const user = await req.user.updateOne({ $set: updates }, { new: true });
+    await req.user.updateOne({ $set: updates });
     const refreshedUser = await req.user.constructor.findById(req.user._id);
+    const sanitized = sanitizeSettings(refreshedUser.autoReplySettings);
+
+    const wasEnabled = previousSettings.enabled ?? false;
+    const isEnabledNow = sanitized.enabled ?? false;
+
+    if (!wasEnabled && isEnabledNow) {
+        autoReplyService
+            .triggerManualRun(req.user._id)
+            .then(() => console.log(`[AutoReply] Initial sync started for user ${req.user._id}`))
+            .catch((error) => console.error(`[AutoReply] Initial sync failed for user ${req.user._id}:`, error.message));
+    }
 
     res.json({
         success: true,
-        data: sanitizeSettings(refreshedUser.autoReplySettings)
+        data: sanitized
     });
 });
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Loader2, RefreshCcw, Clock, CheckCircle, AlertTriangle, Play } from 'lucide-react';
 import { AUTO_REPLY_DELAY_OPTIONS, AUTO_REPLY_TONES } from '../utils/constants';
 
@@ -64,10 +64,12 @@ export default function AutoReplyPanel({
   const toneOptions = options?.tones?.length ? options.tones : AUTO_REPLY_TONES;
   const [taskTab, setTaskTab] = useState('queue');
 
+  const currentTaskFilter = useMemo(() => (taskTab === 'sent' ? { status: 'sent' } : {}), [taskTab]);
+
   useEffect(() => {
-    const params = taskTab === 'sent' ? { status: 'sent' } : {};
-    refreshTasks(params);
-  }, [taskTab, refreshTasks]);
+    if (!settingsReady) return;
+    refreshTasks(currentTaskFilter);
+  }, [taskTab, refreshTasks, currentTaskFilter, settingsReady]);
 
   const handleToggle = async (field, value) => {
     try {
@@ -86,14 +88,20 @@ export default function AutoReplyPanel({
     }
   };
 
+  useEffect(() => {
+    if (!settingsReady || !settings.enabled) return;
+    const intervalId = setInterval(() => {
+      refreshTasks(currentTaskFilter);
+    }, 8000);
+    return () => clearInterval(intervalId);
+  }, [settingsReady, settings.enabled, refreshTasks, currentTaskFilter]);
+
   const formatReviewSnippet = (text) => {
     if (!text) return 'No review text';
     const normalized = text.replace(/\s+/g, ' ').trim();
     if (normalized.length <= 90) return normalized;
     return `${normalized.slice(0, 90)}…`;
   };
-
-  const currentTaskFilter = taskTab === 'sent' ? { status: 'sent' } : {};
 
   const handleManualRefresh = () => {
     refreshTasks(currentTaskFilter);
@@ -117,7 +125,7 @@ export default function AutoReplyPanel({
     return (
       <section className="bg-white rounded-2xl shadow-sm p-6 mb-8 border border-gray-100">
         <div className="flex items-center gap-2 text-sm text-gray-500">
-          <Loader2 className="animate-spin text-blue-500" size={16} />
+          <Loader2 className="animate-spin text-gray-500" size={16} />
           Syncing auto-reply preferences...
         </div>
       </section>
@@ -151,7 +159,7 @@ export default function AutoReplyPanel({
           <button
             onClick={handleRunNow}
             disabled={running || !settings.enabled}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-600 text-white text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {running ? <Loader2 className="animate-spin" size={16} /> : <Play size={14} />}
             Run Now
@@ -178,7 +186,7 @@ export default function AutoReplyPanel({
                 className="sr-only"
                 disabled={controlsDisabled}
               />
-              <span className={`w-10 h-5 flex items-center bg-gray-200 rounded-full p-1 ${settings.enabled ? 'bg-blue-500' : ''}`}>
+              <span className={`w-10 h-5 flex items-center bg-gray-200 rounded-full p-1 ${settings.enabled ? 'bg-gray-500' : ''}`}>
                 <span
                   className={`bg-white w-4 h-4 rounded-full shadow transform transition ${
                     settings.enabled ? 'translate-x-5' : ''
@@ -191,7 +199,7 @@ export default function AutoReplyPanel({
           <div>
             <label className="text-xs font-semibold uppercase text-gray-500">Reply Delay</label>
             <select
-              className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-500"
               value={settings.delayMinutes}
               onChange={(e) => handleSelectChange('delayMinutes', e)}
               disabled={!settings.enabled || controlsDisabled}
@@ -207,7 +215,7 @@ export default function AutoReplyPanel({
           <div>
             <label className="text-xs font-semibold uppercase text-gray-500">Tone</label>
             <select
-              className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-500"
               value={settings.tone}
               onChange={(e) => handleSelectChange('tone', e)}
               disabled={!settings.enabled || controlsDisabled}
@@ -228,7 +236,7 @@ export default function AutoReplyPanel({
                 disabled={!settings.enabled || controlsDisabled}
                 className={`text-xs py-2 rounded-lg border ${
                   settings[field]
-                    ? 'bg-blue-50 border-blue-200 text-blue-700'
+                    ? 'bg-gray-50 border-gray-200 text-gray-700'
                     : 'bg-gray-50 border-gray-200 text-gray-400'
                 }`}
               >
@@ -266,7 +274,7 @@ export default function AutoReplyPanel({
                       key={tab.id}
                       onClick={() => setTaskTab(tab.id)}
                       className={`px-3 py-1 rounded-full text-xs font-semibold transition ${
-                        taskTab === tab.id ? 'bg-blue-600 text-white' : 'text-gray-500 hover:text-gray-700'
+                        taskTab === tab.id ? 'bg-gray-600 text-white' : 'text-gray-500 hover:text-gray-700'
                       }`}
                     >
                       {tab.label}
@@ -275,7 +283,7 @@ export default function AutoReplyPanel({
                 </div>
                 <button
                   onClick={handleManualRefresh}
-                  className="hidden sm:flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
+                  className="hidden sm:flex items-center gap-1 text-xs text-gray-600 hover:text-gray-700"
                   disabled={tasksLoading}
                 >
                   <RefreshCcw size={12} /> Refresh
@@ -311,12 +319,12 @@ export default function AutoReplyPanel({
                       <span>Scheduled: {formatDate(task.scheduledFor)}</span>
                       <div className="flex gap-2">
                         {task.status === 'generation_failed' && (
-                          <button className="text-blue-600" onClick={() => handleRetry(task._id)}>
+                          <button className="text-gray-600" onClick={() => handleRetry(task._id)}>
                             Retry Draft
                           </button>
                         )}
                         {task.status === 'delivery_failed' && (
-                          <button className="text-blue-600" onClick={() => handleRetry(task._id)}>
+                          <button className="text-gray-600" onClick={() => handleRetry(task._id)}>
                             Retry Send
                           </button>
                         )}
