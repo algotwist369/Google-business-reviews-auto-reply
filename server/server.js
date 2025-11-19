@@ -7,6 +7,7 @@ const mongoose = require('mongoose');
 const connectDB = require('./config/database');
 const configurePassport = require('./config/passport');
 const configureApp = require('./config/app');
+const validateEnv = require('./config/validateEnv');
 const { errorHandler } = require('./utils/errorHandler');
 const autoReplyService = require('./services/autoReplyService');
 
@@ -14,6 +15,9 @@ const autoReplyService = require('./services/autoReplyService');
 const authRoutes = require('./routes/authRoutes');
 const reviewsRoutes = require('./routes/reviewsRoutes');
 const autoReplyRoutes = require('./routes/autoReplyRoutes');
+
+// Validate environment configuration early
+validateEnv();
 
 // Initialize Express app
 const app = express();

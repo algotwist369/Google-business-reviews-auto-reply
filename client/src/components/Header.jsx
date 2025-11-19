@@ -1,13 +1,17 @@
 import React, { memo } from 'react';
-import { MessageSquare, LogOut } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 
 const Header = memo(function Header({ totalReviews, onLogout }) {
   return (
-    <header className="bg-white/95 backdrop-blur-sm shadow-sm sticky top-0 z-30 border-b border-gray-100">
+    <header className="bg-white/85 backdrop-blur-sm shadow-sm sticky top-0 z-30 border-b border-gray-100">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 h-14 sm:h-16 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <MessageSquare className="text-gray-600 w-5 h-5 sm:w-6 sm:h-6" aria-hidden="true" />
-          <span className="font-bold text-lg sm:text-xl text-gray-800">ReviewDash</span>
+          <img 
+            src="/logo.png" 
+            alt="Rama Logo" 
+            className="w-8 h-14 sm:w-[7rem] object-contain"
+            loading="eager"
+          />
         </div>
         <div className="flex items-center gap-2 sm:gap-4">
           <div className="text-right hidden sm:block">
