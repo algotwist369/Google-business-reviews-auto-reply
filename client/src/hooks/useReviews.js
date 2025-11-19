@@ -44,6 +44,7 @@ export const useReviews = (token, onUnauthorized) => {
       setReplyText({ ...replyText, [reviewName]: '' });
       await fetchReviews();
     } catch (err) {
+      console.error('Failed to reply', err);
       alert('Failed to reply.');
     } finally {
       setSendingReply(null);

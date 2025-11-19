@@ -1,4 +1,5 @@
 const googleApiService = require('../services/googleApiService');
+const AutoReplyTask = require('../models/AutoReplyTask');
 const cache = require('../utils/cache');
 const { normalizePagination, createPaginationMeta } = require('../utils/pagination');
 const { FILTER_OPTIONS, SORT_OPTIONS, RATING_MAP, CACHE_TTL, PAGINATION } = require('../utils/constants');
@@ -220,6 +221,18 @@ const replyToReview = asyncHandler(async (req, res) => {
             user.googleAccessToken,
             reviewName,
             comment
+        );
+
+        await AutoReplyTask.updateOne(
+            { userId: user._id, reviewName },
+            {
+                $set: {
+                    status: 'skipped',
+                    sentAt: new Date(),
+                    generatedReply: comment,
+                    error: 'Reply sent manually from dashboard'
+                }
+            }
         );
 
         // Clear cache for this user's reviews

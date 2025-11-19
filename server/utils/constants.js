@@ -46,12 +46,21 @@ const RATING_MAP = {
     'FIVE': 5
 };
 
+const AUTO_REPLY = {
+    DEFAULT_DELAY_MINUTES: 15,
+    DELAY_OPTIONS_MINUTES: [2, 5, 10, 15, 20, 30, 45, 60, 180, 360, 720, 1440],
+    TONES: ['friendly', 'empathetic', 'professional', 'concise'],
+    MAX_GENERATIONS_PER_CYCLE: 5,
+    MAX_DISPATCH_PER_CYCLE: 5
+};
+
 module.exports = {
     GOOGLE_API,
     PAGINATION,
     CACHE_TTL,
     FILTER_OPTIONS,
     SORT_OPTIONS,
-    RATING_MAP
+    RATING_MAP,
+    AUTO_REPLY
 };
 

@@ -55,6 +55,48 @@ export const api = {
       { headers: getAuthHeaders(token) }
     );
     return response.data;
+  },
+
+  getAutoReplyConfig: async (token) => {
+    const response = await axios.get(`${API_URL}/api/auto-reply/config`, {
+      headers: getAuthHeaders(token)
+    });
+    return response.data;
+  },
+
+  updateAutoReplyConfig: async (token, payload) => {
+    const response = await axios.put(
+      `${API_URL}/api/auto-reply/config`,
+      payload,
+      { headers: getAuthHeaders(token) }
+    );
+    return response.data;
+  },
+
+  getAutoReplyTasks: async (token, params = {}) => {
+    const response = await axios.get(`${API_URL}/api/auto-reply/tasks`, {
+      headers: getAuthHeaders(token),
+      params
+    });
+    return response.data;
+  },
+
+  runAutoReplyNow: async (token) => {
+    const response = await axios.post(
+      `${API_URL}/api/auto-reply/run`,
+      {},
+      { headers: getAuthHeaders(token) }
+    );
+    return response.data;
+  },
+
+  retryAutoReplyTask: async (token, taskId) => {
+    const response = await axios.post(
+      `${API_URL}/api/auto-reply/tasks/${taskId}/retry`,
+      {},
+      { headers: getAuthHeaders(token) }
+    );
+    return response.data;
   }
 };
 

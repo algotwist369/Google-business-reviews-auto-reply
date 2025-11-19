@@ -8,10 +8,12 @@ const connectDB = require('./config/database');
 const configurePassport = require('./config/passport');
 const configureApp = require('./config/app');
 const { errorHandler } = require('./utils/errorHandler');
+const autoReplyService = require('./services/autoReplyService');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
 const reviewsRoutes = require('./routes/reviewsRoutes');
+const autoReplyRoutes = require('./routes/autoReplyRoutes');
 
 // Initialize Express app
 const app = express();
@@ -24,7 +26,12 @@ app.use(passport.initialize());
 configurePassport();
 
 // Connect to MongoDB
-connectDB();
+const dbPromise = connectDB();
+dbPromise
+    .then(() => autoReplyService.start())
+    .catch((error) => {
+        console.error('Failed to start auto-reply service:', error.message);
+    });
 
 // Health check endpoint (before routes for better performance)
 // Returns 200 if healthy, 503 if unhealthy (for load balancer/proxy health checks)
@@ -69,6 +76,7 @@ app.get('/health', async (req, res) => {
 // Routes
 app.use('/auth', authRoutes);
 app.use('/api/reviews', reviewsRoutes);
+app.use('/api/auto-reply', autoReplyRoutes);
 
 // 404 handler - must be after all routes
 // Note: Express 5 doesn't support wildcard '*' pattern in app.use()

@@ -21,3 +21,6 @@ export const SORT_OPTIONS = {
   LOWEST: 'lowest'
 };
 
+export const AUTO_REPLY_DELAY_OPTIONS = [2, 5, 10, 15, 20, 30, 45, 60, 180, 360, 720, 1440];
+export const AUTO_REPLY_TONES = ['friendly', 'empathetic', 'professional', 'concise'];
+
