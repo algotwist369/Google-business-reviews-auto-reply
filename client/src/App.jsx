@@ -1,8 +1,9 @@
-import React, { useCallback, lazy, Suspense, useMemo } from 'react';
+import React, { useState, useCallback, lazy, Suspense, useMemo } from 'react';
 import { useAuth } from './hooks/useAuth';
 import { useReviews } from './hooks/useReviews';
 import { useFilterAndSort } from './hooks/useFilterAndSort';
 import { useAutoReply } from './hooks/useAutoReply';
+import { useSuperAdmin } from './hooks/useSuperAdmin';
 import Login from './components/Login';
 import Header from './components/Header';
 import FilterControls from './components/FilterControls';
@@ -12,15 +13,23 @@ import EmptyState from './components/EmptyState';
 // Lazy load heavy components for better initial load
 const LocationTabs = lazy(() => import('./components/LocationTabs'));
 const AutoReplyPanel = lazy(() => import('./components/AutoReplyPanel'));
+const SuperAdminDashboard = lazy(() => import('./components/SuperAdminDashboard'));
 
 export default function App() {
-  const { token, logout } = useAuth();
+  const { token, loading: authLoading, logout, isSuperAdmin } = useAuth();
+  const [activeTab, setActiveTab] = useState(() => {
+    // Initialize tab based on role - will be updated when user loads
+    return 'admin';
+  });
+  
   const handleLogout = useCallback(() => {
     logout();
   }, [logout]);
   
-  const { loading, data, replyText, sendingReply, handleReplySubmit, updateReplyText } = useReviews(token, handleLogout);
-  const autoReply = useAutoReply(token);
+  // Only load user-side hooks if not super admin OR if super admin is on user tab
+  const shouldLoadUserFeatures = !isSuperAdmin || activeTab === 'user';
+  const { loading, data, replyText, sendingReply, handleReplySubmit, updateReplyText } = useReviews(shouldLoadUserFeatures ? token : null, handleLogout);
+  const autoReply = useAutoReply(shouldLoadUserFeatures ? token : null);
   
   const {
     filterStatus,
@@ -69,8 +78,89 @@ export default function App() {
     autoReply.refreshTasks
   ]);
 
+  // Super admin hook - only load if user is super admin
+  const superAdmin = useSuperAdmin(isSuperAdmin ? token : null);
+
   if (!token) {
     return <Login />;
+  }
+
+  if (authLoading) {
+    return <LoadingState />;
+  }
+
+  // Show super admin dashboard for super admins with tab switcher
+  if (isSuperAdmin) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header totalReviews={activeTab === 'user' ? totalRawReviews : 0} onLogout={handleLogout} />
+        
+        {/* Tab Switcher for Super Admin */}
+        <div className="bg-white border-b border-gray-200 sticky top-14 z-20">
+          <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setActiveTab('admin')}
+                className={`px-4 py-3 text-sm font-medium transition-colors duration-200 border-b-2 ${
+                  activeTab === 'admin'
+                    ? 'border-gray-600 text-gray-900 bg-gray-50'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Super Admin
+              </button>
+              <button
+                onClick={() => setActiveTab('user')}
+                className={`px-4 py-3 text-sm font-medium transition-colors duration-200 border-b-2 ${
+                  activeTab === 'user'
+                    ? 'border-gray-600 text-gray-900 bg-gray-50'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                My Reviews
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8">
+          {activeTab === 'admin' ? (
+            <Suspense fallback={<LoadingState />}>
+              <SuperAdminDashboard {...superAdmin} />
+            </Suspense>
+          ) : (
+            <>
+              <Suspense fallback={<LoadingState />}>
+                <AutoReplyPanel {...autoReplyProps} />
+              </Suspense>
+
+              <FilterControls
+                filterStatus={filterStatus}
+                sortOrder={sortOrder}
+                onFilterChange={setFilterStatus}
+                onSortChange={setSortOrder}
+              />
+
+              {loading ? (
+                <LoadingState />
+              ) : visibleReviewsCount === 0 ? (
+                <EmptyState onClearFilters={handleClearFilters} />
+              ) : (
+                <Suspense fallback={<LoadingState />}>
+                  <LocationTabs
+                    locations={processedData}
+                    replyText={replyText}
+                    sendingReply={sendingReply}
+                    onReplyTextChange={updateReplyText}
+                    onReplySubmit={handleReplySubmit}
+                  />
+                </Suspense>
+              )}
+            </>
+          )}
+        </main>
+      </div>
+    );
   }
 
   return (

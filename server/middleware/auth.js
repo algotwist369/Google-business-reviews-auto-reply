@@ -38,13 +38,17 @@ const verifyToken = asyncHandler(async (req, res, next) => {
         req.user = user;
         next();
     } catch (error) {
+        // Log error details for debugging (but don't expose to client)
         if (error.name === 'JsonWebTokenError') {
-            return next(new AppError('Invalid token.', 401));
+            console.warn('JWT verification failed: Invalid token format');
+            return next(new AppError('Invalid token. Please log in again.', 401));
         }
         if (error.name === 'TokenExpiredError') {
-            return next(new AppError('Token expired.', 401));
+            console.warn('JWT verification failed: Token expired');
+            return next(new AppError('Token expired. Please log in again.', 401));
         }
-        return next(new AppError('Authentication failed.', 401));
+        console.error('Authentication error:', error.message);
+        return next(new AppError('Authentication failed. Please log in again.', 401));
     }
 });
 

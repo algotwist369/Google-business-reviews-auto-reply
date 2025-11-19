@@ -97,6 +97,73 @@ export const api = {
       { headers: getAuthHeaders(token) }
     );
     return response.data;
+  },
+
+  // Super Admin APIs
+  getSuperAdminStats: async (token) => {
+    const response = await axios.get(`${API_URL}/api/super-admin/dashboard/stats`, {
+      headers: getAuthHeaders(token)
+    });
+    return response.data;
+  },
+
+  getAllBusinesses: async (token, params = {}) => {
+    const response = await axios.get(`${API_URL}/api/super-admin/businesses`, {
+      headers: getAuthHeaders(token),
+      params
+    });
+    return response.data;
+  },
+
+  getBusinessDetails: async (token, businessId) => {
+    const response = await axios.get(`${API_URL}/api/super-admin/businesses/${businessId}`, {
+      headers: getAuthHeaders(token)
+    });
+    return response.data;
+  },
+
+  enableTrial: async (token, businessId, days = 14) => {
+    const response = await axios.post(
+      `${API_URL}/api/super-admin/businesses/${businessId}/trial/enable`,
+      { days },
+      { headers: getAuthHeaders(token) }
+    );
+    return response.data;
+  },
+
+  disableTrial: async (token, businessId) => {
+    const response = await axios.post(
+      `${API_URL}/api/super-admin/businesses/${businessId}/trial/disable`,
+      {},
+      { headers: getAuthHeaders(token) }
+    );
+    return response.data;
+  },
+
+  updateSubscription: async (token, businessId, subscription) => {
+    const response = await axios.put(
+      `${API_URL}/api/super-admin/businesses/${businessId}/subscription`,
+      subscription,
+      { headers: getAuthHeaders(token) }
+    );
+    return response.data;
+  },
+
+  updateBusinessRole: async (token, businessId, role) => {
+    const response = await axios.put(
+      `${API_URL}/api/super-admin/businesses/${businessId}/role`,
+      { role },
+      { headers: getAuthHeaders(token) }
+    );
+    return response.data;
+  },
+
+  // User profile
+  getProfile: async (token) => {
+    const response = await axios.get(`${API_URL}/api/user/profile`, {
+      headers: getAuthHeaders(token)
+    });
+    return response.data;
   }
 };
 

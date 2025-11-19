@@ -34,6 +34,11 @@ export const useAutoReply = (token) => {
       setOptions(payload.data?.options || { delayMinutes: [], tones: [] });
       setError(null);
     } catch (err) {
+      // Don't show errors for 401/403 if user is not authorized (might be super admin)
+      if (err?.response?.status === 401 || err?.response?.status === 403) {
+        setError(null);
+        return;
+      }
       console.error('Failed to load auto-reply settings', err);
       setError('Unable to load auto-reply settings.');
     } finally {
@@ -50,7 +55,10 @@ export const useAutoReply = (token) => {
         const response = await api.getAutoReplyTasks(token, { limit: 25, ...params });
         setTasks(response.data || []);
       } catch (err) {
-        console.error('Failed to fetch auto-reply tasks', err);
+        // Don't show errors for 401/403 (unauthorized)
+        if (err?.response?.status !== 401 && err?.response?.status !== 403) {
+          console.error('Failed to fetch auto-reply tasks', err);
+        }
       } finally {
         setTasksLoading(false);
       }
@@ -68,8 +76,11 @@ export const useAutoReply = (token) => {
         setSettings(response.data || EMPTY_SETTINGS);
         setError(null);
       } catch (err) {
-        console.error('Failed to update auto-reply settings', err);
-        setError('Unable to update auto-reply settings.');
+        // Don't show errors for 401/403 (unauthorized)
+        if (err?.response?.status !== 401 && err?.response?.status !== 403) {
+          console.error('Failed to update auto-reply settings', err);
+          setError('Unable to update auto-reply settings.');
+        }
         throw err;
       } finally {
         setSaving(false);
@@ -86,8 +97,11 @@ export const useAutoReply = (token) => {
       await api.runAutoReplyNow(token);
       await refreshTasks();
     } catch (err) {
-      console.error('Failed to trigger auto-reply run', err);
-      setError('Unable to trigger auto-reply run.');
+      // Don't show errors for 401/403 (unauthorized)
+      if (err?.response?.status !== 401 && err?.response?.status !== 403) {
+        console.error('Failed to trigger auto-reply run', err);
+        setError('Unable to trigger auto-reply run.');
+      }
     } finally {
       setRunning(false);
     }
@@ -100,8 +114,11 @@ export const useAutoReply = (token) => {
         await api.retryAutoReplyTask(token, taskId);
         await refreshTasks();
       } catch (err) {
-        console.error('Failed to retry task', err);
-        setError('Unable to retry task.');
+        // Don't show errors for 401/403 (unauthorized)
+        if (err?.response?.status !== 401 && err?.response?.status !== 403) {
+          console.error('Failed to retry task', err);
+          setError('Unable to retry task.');
+        }
       }
     },
     [token, refreshTasks]

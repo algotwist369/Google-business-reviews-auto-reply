@@ -12,9 +12,17 @@ const { errorHandler } = require('./utils/errorHandler');
 const autoReplyService = require('./services/autoReplyService');
 
 // Import routes
+console.log('Loading routes...');
 const authRoutes = require('./routes/authRoutes');
+console.log('✓ authRoutes loaded');
+const userRoutes = require('./routes/userRoutes');
+console.log('✓ userRoutes loaded');
 const reviewsRoutes = require('./routes/reviewsRoutes');
+console.log('✓ reviewsRoutes loaded');
 const autoReplyRoutes = require('./routes/autoReplyRoutes');
+console.log('✓ autoReplyRoutes loaded');
+const superAdminRoutes = require('./routes/superAdminRoutes');
+console.log('✓ superAdminRoutes loaded');
 
 // Validate environment configuration early
 validateEnv();
@@ -78,9 +86,17 @@ app.get('/health', async (req, res) => {
 });
 
 // Routes
+console.log('Registering routes...');
 app.use('/auth', authRoutes);
+console.log('✓ /auth route registered');
+app.use('/api/user', userRoutes);
+console.log('✓ /api/user route registered');
 app.use('/api/reviews', reviewsRoutes);
+console.log('✓ /api/reviews route registered');
 app.use('/api/auto-reply', autoReplyRoutes);
+console.log('✓ /api/auto-reply route registered');
+app.use('/api/super-admin', superAdminRoutes);
+console.log('✓ /api/super-admin route registered');
 
 // 404 handler - must be after all routes
 // Note: Express 5 doesn't support wildcard '*' pattern in app.use()
