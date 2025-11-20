@@ -22,6 +22,19 @@ export const useSuperAdmin = (token) => {
   // Track ongoing requests to prevent duplicates
   const statsRequestRef = useRef(false);
   const businessesRequestRef = useRef(false);
+  
+  // Refs to store current filters and pagination for debounced functions
+  const filtersRef = useRef(filters);
+  const paginationRef = useRef(pagination);
+
+  // Update refs when state changes
+  useEffect(() => {
+    filtersRef.current = filters;
+  }, [filters]);
+
+  useEffect(() => {
+    paginationRef.current = pagination;
+  }, [pagination]);
 
   const loadStats = useCallback(async () => {
     if (!token) return;
@@ -97,57 +110,91 @@ export const useSuperAdmin = (token) => {
     }
   }, [token]);
 
+  // Create refs for debounced functions that will be set up later
+  const debouncedLoadBothRef = useRef(null);
+
   const enableTrial = useCallback(async (businessId, days = 14) => {
     if (!token) return;
     try {
       const response = await api.enableTrial(token, businessId, days);
+      toast.success(`Trial enabled for ${days} days.`);
       // WebSocket will automatically refresh via 'superAdmin:business:updated' event
+      // Also trigger immediate refresh to ensure UI updates
+      if (debouncedLoadBothRef.current) {
+        debouncedLoadBothRef.current();
+      } else {
+        // Fallback: refresh directly if debounced function not ready
+        loadStats();
+        loadBusinesses(paginationRef.current.page, filtersRef.current);
+      }
       return response;
     } catch (err) {
       toast.error('Failed to enable trial.');
       setError(err.response?.data?.error || 'Failed to enable trial');
       throw err;
     }
-  }, [token]);
+  }, [token, loadStats, loadBusinesses]);
 
   const disableTrial = useCallback(async (businessId) => {
     if (!token) return;
     try {
       const response = await api.disableTrial(token, businessId);
+      toast.success('Trial disabled successfully.');
       // WebSocket will automatically refresh via 'superAdmin:business:updated' event
+      // Also trigger immediate refresh to ensure UI updates
+      if (debouncedLoadBothRef.current) {
+        debouncedLoadBothRef.current();
+      } else {
+        loadStats();
+        loadBusinesses(paginationRef.current.page, filtersRef.current);
+      }
       return response;
     } catch (err) {
       toast.error('Failed to disable trial.');
       setError(err.response?.data?.error || 'Failed to disable trial');
       throw err;
     }
-  }, [token]);
+  }, [token, loadStats, loadBusinesses]);
 
   const updateSubscription = useCallback(async (businessId, subscription) => {
     if (!token) return;
     try {
       const response = await api.updateSubscription(token, businessId, subscription);
+      toast.success('Subscription updated successfully.');
       // WebSocket will automatically refresh via 'superAdmin:business:updated' event
+      if (debouncedLoadBothRef.current) {
+        debouncedLoadBothRef.current();
+      } else {
+        loadStats();
+        loadBusinesses(paginationRef.current.page, filtersRef.current);
+      }
       return response;
     } catch (err) {
       toast.error('Failed to update subscription.');
       setError(err.response?.data?.error || 'Failed to update subscription');
       throw err;
     }
-  }, [token]);
+  }, [token, loadStats, loadBusinesses]);
 
   const updateBusinessRole = useCallback(async (businessId, role) => {
     if (!token) return;
     try {
       const response = await api.updateBusinessRole(token, businessId, role);
+      toast.success(`Role updated to ${role} successfully.`);
       // WebSocket will automatically refresh via 'superAdmin:business:updated' event
+      if (debouncedLoadBothRef.current) {
+        debouncedLoadBothRef.current();
+      } else {
+        loadStats();
+        loadBusinesses(paginationRef.current.page, filtersRef.current);
+      }
       return response;
     } catch (err) {
       toast.error('Failed to update role.');
       setError(err.response?.data?.error || 'Failed to update role');
       throw err;
     }
-  }, [token]);
+  }, [token, loadStats, loadBusinesses]);
 
   const updateFilters = useCallback((newFilters) => {
     setFilters(newFilters);
@@ -180,12 +227,18 @@ export const useSuperAdmin = (token) => {
   }, [token, loadStats, loadBusinesses]);
 
   // Debounced refresh functions to prevent rapid calls
+  // Use refs to access current filters and pagination values
   const debouncedLoadStats = useRef(debounce(() => loadStats(), 500)).current;
-  const debouncedLoadBusinesses = useRef(debounce(() => loadBusinesses(pagination.page, filters), 500)).current;
+  const debouncedLoadBusinesses = useRef(debounce(() => {
+    loadBusinesses(paginationRef.current.page, filtersRef.current);
+  }, 500)).current;
   const debouncedLoadBoth = useRef(debounce(() => {
     loadStats();
-    loadBusinesses(pagination.page, filters);
+    loadBusinesses(paginationRef.current.page, filtersRef.current);
   }, 500)).current;
+  
+  // Store debounced function in ref for use in callbacks
+  debouncedLoadBothRef.current = debouncedLoadBoth;
 
   // Subscribe to WebSocket events for real-time updates
   useEffect(() => {

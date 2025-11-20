@@ -8,11 +8,10 @@ import {
   Search,
   Play,
   Pause,
-  Crown,
+  
   Building2,
-  Calendar,
-  DollarSign,
-  Filter
+ 
+ 
 } from 'lucide-react';
 
 const trialStatusOptions = Object.freeze([
@@ -127,6 +126,32 @@ const SuperAdminDashboard = memo(function SuperAdminDashboard({
   );
   const resolvedBusinesses = useMemo(() => businesses || [], [businesses]);
   const paginationMeta = useMemo(() => pagination || { page: 1, limit: 10, total: 0, pages: 1 }, [pagination]);
+
+  const getTrialStatusBadge = useCallback((trial) => {
+    if (!trial || !trial.enabled) {
+      return <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">No Trial</span>;
+    }
+    const status = trial.status || 'not_started';
+    return (
+      <span className={`px-2 py-1 text-xs rounded-full ${trialBadgeColors[status] || trialBadgeColors.not_started}`}>
+        {status}
+      </span>
+    );
+  }, []);
+
+  const getSubscriptionBadge = useCallback((subscription) => {
+    const plan = subscription?.plan || 'free';
+    const status = subscription?.status || 'active';
+    return (
+      <div className="flex items-center gap-2">
+        <span className={`px-2 py-1 text-xs rounded-full ${planColors[plan] || planColors.free}`}>{plan}</span>
+        <span className={`px-2 py-1 text-xs rounded-full ${statusColors[status === 'active' ? 'active' : 'inactive']}`}>
+          {status}
+        </span>
+      </div>
+    );
+  }, []);
+
   const detailSummaryItems = useMemo(() => {
     if (!selectedBusiness) return [];
     return [
@@ -181,31 +206,6 @@ const SuperAdminDashboard = memo(function SuperAdminDashboard({
     },
     [loadBusinessDetails]
   );
-
-  const getTrialStatusBadge = useCallback((trial) => {
-    if (!trial || !trial.enabled) {
-      return <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">No Trial</span>;
-    }
-    const status = trial.status || 'not_started';
-    return (
-      <span className={`px-2 py-1 text-xs rounded-full ${trialBadgeColors[status] || trialBadgeColors.not_started}`}>
-        {status}
-      </span>
-    );
-  }, []);
-
-  const getSubscriptionBadge = useCallback((subscription) => {
-    const plan = subscription?.plan || 'free';
-    const status = subscription?.status || 'active';
-    return (
-      <div className="flex items-center gap-2">
-        <span className={`px-2 py-1 text-xs rounded-full ${planColors[plan] || planColors.free}`}>{plan}</span>
-        <span className={`px-2 py-1 text-xs rounded-full ${statusColors[status === 'active' ? 'active' : 'inactive']}`}>
-          {status}
-        </span>
-      </div>
-    );
-  }, []);
 
   const handleFilterChange = useCallback(
     (key, value) => {

@@ -87,15 +87,19 @@ export default function SubscriptionPanel({ token }) {
       setError(null);
 
       if (planKey === 'free') {
+        if (subscription?.freeSwitchUsed) {
+          toast.error('The free plan has already been redeemed for this account.');
+          return;
+        }
         try {
           setProcessingPlan(planKey);
           const response = await api.createCheckoutSession(token, planKey);
-        if (response.success) {
-          await loadData();
-          toast.success('Switched to free plan successfully!');
-        } else {
-          toast.error('Unable to switch to the free plan. Please try again.');
-        }
+          if (response.success) {
+            await loadData();
+            toast.success('Switched to free plan successfully!');
+          } else {
+            toast.error('Unable to switch to the free plan. Please try again.');
+          }
         } catch (err) {
           setError(err.response?.data?.error || 'Failed to switch plan.');
         } finally {
@@ -166,10 +170,15 @@ export default function SubscriptionPanel({ token }) {
         setError(err.response?.data?.error || err.message || 'Failed to start checkout process.');
       }
     },
-    [ensureRazorpayScript, loadData, plans, token]
+    [ensureRazorpayScript, loadData, plans, subscription, token]
   );
 
   const handleCancel = useCallback(async () => {
+    if (subscription?.freeSwitchUsed) {
+      toast.error('Free plan is no longer available for this account. Please contact support.');
+      return;
+    }
+
     if (
       !window.confirm(
         'Are you sure you want to cancel your subscription? It will remain active until the end of the billing period.'
@@ -189,7 +198,7 @@ export default function SubscriptionPanel({ token }) {
     } finally {
       setProcessingAction(false);
     }
-  }, [loadData, token]);
+  }, [loadData, subscription, token]);
 
   const formatPrice = useCallback((priceInPaise, currency = 'INR') => {
     if (!priceInPaise) return 'Free';
@@ -211,6 +220,7 @@ export default function SubscriptionPanel({ token }) {
   const currentPlan = subscription?.plan || 'free';
   const currentPlanName = useMemo(() => plans[currentPlan]?.name || currentPlan, [plans, currentPlan]);
   const planEntries = useMemo(() => Object.entries(plans), [plans]);
+  const freeSwitchUsed = Boolean(subscription?.freeSwitchUsed);
 
   if (loading) {
     return (
@@ -265,11 +275,16 @@ export default function SubscriptionPanel({ token }) {
           {subscription?.status === 'active' && currentPlan !== 'free' && (
             <button
               onClick={handleCancel}
-              disabled={processingAction}
+              disabled={processingAction || freeSwitchUsed}
               className="mt-4 inline-flex items-center justify-center  border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
               {processingAction ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Cancel subscription'}
             </button>
+          )}
+          {freeSwitchUsed && currentPlan !== 'free' && (
+            <p className="mt-2 text-xs text-amber-600">
+              Free tier has already been used on this account. Contact support for additional downgrades.
+            </p>
           )}
         </div>
 
@@ -289,6 +304,8 @@ export default function SubscriptionPanel({ token }) {
           const isCurrentPlan = currentPlan === key;
           const isPaid = plan.priceInPaise > 0;
           const isProcessingThisPlan = processingPlan === key;
+          const isFreePlan = !isPaid;
+          const freePlanLocked = isFreePlan && freeSwitchUsed && !isCurrentPlan;
 
           return (
             <div
@@ -321,13 +338,15 @@ export default function SubscriptionPanel({ token }) {
 
               <button
                 onClick={() => handleSubscribe(key)}
-                disabled={isCurrentPlan || isProcessingThisPlan || processingAction}
+                disabled={isCurrentPlan || isProcessingThisPlan || processingAction || freePlanLocked}
                 className={`w-full  px-4 py-2 text-sm font-semibold transition ${
                   isCurrentPlan
                     ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
                     : isPaid
                       ? 'bg-gray-600 text-white hover:bg-gray-700'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      : freePlanLocked
+                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
               >
                 {isProcessingThisPlan ? (
@@ -343,6 +362,9 @@ export default function SubscriptionPanel({ token }) {
                   'Switch to free'
                 )}
               </button>
+              {freePlanLocked && (
+                <p className="text-xs text-amber-600 text-center">Free tier already used for this account.</p>
+              )}
             </div>
           );
         })}
