@@ -1,8 +1,100 @@
-import React, { useState, useCallback, memo } from 'react';
-import { 
-  Users, TrendingUp, MessageSquare, CheckCircle, Clock, Search,
-  Play, Pause, Crown, Building2, Calendar, DollarSign, Filter
+import React, { useState, useCallback, memo, useMemo } from 'react';
+import {
+  Users,
+  TrendingUp,
+  MessageSquare,
+  CheckCircle,
+  Clock,
+  Search,
+  Play,
+  Pause,
+  Crown,
+  Building2,
+  Calendar,
+  DollarSign,
+  Filter
 } from 'lucide-react';
+
+const trialStatusOptions = Object.freeze([
+  { value: 'all', label: 'All Trial Status' },
+  { value: 'not_started', label: 'Not Started' },
+  { value: 'active', label: 'Active' },
+  { value: 'expired', label: 'Expired' },
+  { value: 'converted', label: 'Converted' }
+]);
+
+const subscriptionStatusOptions = Object.freeze([
+  { value: 'all', label: 'All Subscription' },
+  { value: 'active', label: 'Active' },
+  { value: 'cancelled', label: 'Cancelled' },
+  { value: 'expired', label: 'Expired' },
+  { value: 'suspended', label: 'Suspended' }
+]);
+
+const statsCards = Object.freeze([
+  {
+    label: 'Total Businesses',
+    valueKey: 'totalBusinesses',
+    icon: Building2,
+    accent: 'text-gray-400',
+    color: 'text-gray-900'
+  },
+  {
+    label: 'Active Trials',
+    valueKey: 'activeTrials',
+    icon: Clock,
+    accent: 'text-green-400',
+    color: 'text-green-600'
+  },
+  {
+    label: 'Total Reviews',
+    valueKey: 'totalReviews',
+    icon: MessageSquare,
+    accent: 'text-blue-400',
+    color: 'text-blue-600'
+  },
+  {
+    label: 'Total Replies',
+    valueKey: 'totalReplies',
+    icon: CheckCircle,
+    accent: 'text-indigo-400',
+    color: 'text-indigo-600'
+  },
+  {
+    label: 'Active Auto-Reply',
+    valueKey: 'activeAutoReply',
+    icon: TrendingUp,
+    accent: 'text-purple-400',
+    color: 'text-purple-600'
+  },
+  {
+    label: 'Recent Signups',
+    valueKey: 'recentSignups',
+    icon: Users,
+    accent: 'text-orange-400',
+    color: 'text-orange-600'
+  }
+]);
+
+const trialBadgeColors = Object.freeze({
+  active: 'bg-green-100 text-green-700',
+  expired: 'bg-red-100 text-red-700',
+  converted: 'bg-blue-100 text-blue-700',
+  not_started: 'bg-gray-100 text-gray-600'
+});
+
+const planColors = Object.freeze({
+  trial: 'bg-purple-100 text-purple-700',
+  free: 'bg-gray-100 text-gray-700',
+  basic: 'bg-blue-100 text-blue-700',
+  pro: 'bg-indigo-100 text-indigo-700',
+  enterprise: 'bg-yellow-100 text-yellow-700'
+});
+
+const statusColors = Object.freeze({
+  active: 'bg-green-100 text-green-700',
+  inactive: 'bg-red-100 text-red-700'
+});
 
 const SuperAdminDashboard = memo(function SuperAdminDashboard({
   stats,
@@ -24,7 +116,44 @@ const SuperAdminDashboard = memo(function SuperAdminDashboard({
   const [trialDays, setTrialDays] = useState(14);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
 
-  const handleEnableTrial = useCallback(async (business) => {
+  const statsOverview = useMemo(() => stats?.overview || {}, [stats]);
+
+  const filterOptions = useMemo(
+    () => ({
+      trial: trialStatusOptions,
+      subscription: subscriptionStatusOptions
+    }),
+    []
+  );
+  const resolvedBusinesses = useMemo(() => businesses || [], [businesses]);
+  const paginationMeta = useMemo(() => pagination || { page: 1, limit: 10, total: 0, pages: 1 }, [pagination]);
+  const detailSummaryItems = useMemo(() => {
+    if (!selectedBusiness) return [];
+    return [
+      { label: 'Name', value: selectedBusiness.name || 'N/A' },
+      { label: 'Email', value: selectedBusiness.email || 'N/A' },
+      { label: 'Role', value: selectedBusiness.role || 'user' },
+      { label: 'Trial Status', value: getTrialStatusBadge(selectedBusiness.trial), isNode: true },
+      { label: 'Subscription', value: getSubscriptionBadge(selectedBusiness.subscription), isNode: true },
+      {
+        label: 'Auto-Reply Enabled',
+        value: selectedBusiness.autoReplySettings?.enabled ? 'Yes' : 'No'
+      }
+    ];
+  }, [getSubscriptionBadge, getTrialStatusBadge, selectedBusiness]);
+
+  const detailStatsItems = useMemo(() => {
+    const stats = selectedBusiness?.stats || {};
+    return [
+      { label: 'Total Reviews', value: stats.totalReviews || 0 },
+      { label: 'Total Tasks', value: stats.totalTasks || 0 },
+      { label: 'Sent Replies', value: stats.sentReplies || 0 },
+      { label: 'Pending', value: stats.pendingTasks || 0 },
+      { label: 'Failed', value: stats.failedTasks || 0 }
+    ];
+  }, [selectedBusiness]);
+
+  const handleEnableTrial = useCallback((business) => {
     setSelectedBusinessForTrial(business);
     setShowTrialModal(true);
   }, []);
@@ -39,48 +168,89 @@ const SuperAdminDashboard = memo(function SuperAdminDashboard({
     } catch {
       // Error handled in hook
     }
-  }, [selectedBusinessForTrial, trialDays, enableTrial]);
+  }, [enableTrial, selectedBusinessForTrial, trialDays]);
 
-  const handleViewDetails = useCallback(async (business) => {
-    try {
-      await loadBusinessDetails(business._id);
-      setShowDetailsModal(true);
-    } catch {
-      // Error handled in hook
-    }
-  }, [loadBusinessDetails]);
+  const handleViewDetails = useCallback(
+    async (business) => {
+      try {
+        await loadBusinessDetails(business._id);
+        setShowDetailsModal(true);
+      } catch {
+        // Error handled in hook
+      }
+    },
+    [loadBusinessDetails]
+  );
 
-  const getTrialStatusBadge = (trial) => {
+  const getTrialStatusBadge = useCallback((trial) => {
     if (!trial || !trial.enabled) {
       return <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">No Trial</span>;
     }
-    const status = trial.status;
-    const colors = {
-      active: 'bg-green-100 text-green-700',
-      expired: 'bg-red-100 text-red-700',
-      converted: 'bg-blue-100 text-blue-700',
-      not_started: 'bg-gray-100 text-gray-600'
-    };
-    return <span className={`px-2 py-1 text-xs rounded-full ${colors[status] || colors.not_started}`}>{status}</span>;
-  };
+    const status = trial.status || 'not_started';
+    return (
+      <span className={`px-2 py-1 text-xs rounded-full ${trialBadgeColors[status] || trialBadgeColors.not_started}`}>
+        {status}
+      </span>
+    );
+  }, []);
 
-  const getSubscriptionBadge = (subscription) => {
+  const getSubscriptionBadge = useCallback((subscription) => {
     const plan = subscription?.plan || 'free';
     const status = subscription?.status || 'active';
-    const planColors = {
-      trial: 'bg-purple-100 text-purple-700',
-      free: 'bg-gray-100 text-gray-700',
-      basic: 'bg-blue-100 text-blue-700',
-      pro: 'bg-indigo-100 text-indigo-700',
-      enterprise: 'bg-yellow-100 text-yellow-700'
-    };
     return (
       <div className="flex items-center gap-2">
         <span className={`px-2 py-1 text-xs rounded-full ${planColors[plan] || planColors.free}`}>{plan}</span>
-        <span className={`px-2 py-1 text-xs rounded-full ${status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{status}</span>
+        <span className={`px-2 py-1 text-xs rounded-full ${statusColors[status === 'active' ? 'active' : 'inactive']}`}>
+          {status}
+        </span>
       </div>
     );
-  };
+  }, []);
+
+  const handleFilterChange = useCallback(
+    (key, value) => {
+      updateFilters({ ...filters, [key]: value });
+    },
+    [filters, updateFilters]
+  );
+
+  const handleSearchChange = useCallback(
+    (event) => {
+      handleFilterChange('search', event.target.value);
+    },
+    [handleFilterChange]
+  );
+
+  const handleTrialStatusChange = useCallback(
+    (event) => {
+      handleFilterChange('trialStatus', event.target.value);
+    },
+    [handleFilterChange]
+  );
+
+  const handleSubscriptionStatusChange = useCallback(
+    (event) => {
+      handleFilterChange('subscriptionStatus', event.target.value);
+    },
+    [handleFilterChange]
+  );
+
+  const handlePageChange = useCallback(
+    (nextPage) => {
+      if (nextPage < 1 || nextPage > paginationMeta.pages || nextPage === paginationMeta.page) {
+        return;
+      }
+      changePage(nextPage);
+    },
+    [changePage, paginationMeta.page, paginationMeta.pages]
+  );
+
+  const paginationLabel = useMemo(() => {
+    const { page, limit, total } = paginationMeta;
+    const start = (page - 1) * limit + 1;
+    const end = Math.min(page * limit, total);
+    return `Showing ${start} to ${end} of ${total}`;
+  }, [paginationMeta]);
 
   if (loading) {
     return (
@@ -95,60 +265,20 @@ const SuperAdminDashboard = memo(function SuperAdminDashboard({
       {/* Stats Overview */}
       {stats && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">Total Businesses</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.overview?.totalBusinesses || 0}</p>
+          {statsCards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <div key={card.valueKey} className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">{card.label}</p>
+                    <p className={`text-2xl font-bold ${card.color}`}>{statsOverview?.[card.valueKey] || 0}</p>
+                  </div>
+                  <Icon className={`w-8 h-8 ${card.accent}`} />
+                </div>
               </div>
-              <Building2 className="w-8 h-8 text-gray-400" />
-            </div>
-          </div>
-          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">Active Trials</p>
-                <p className="text-2xl font-bold text-green-600">{stats.overview?.activeTrials || 0}</p>
-              </div>
-              <Clock className="w-8 h-8 text-green-400" />
-            </div>
-          </div>
-          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">Total Reviews</p>
-                <p className="text-2xl font-bold text-blue-600">{stats.overview?.totalReviews || 0}</p>
-              </div>
-              <MessageSquare className="w-8 h-8 text-blue-400" />
-            </div>
-          </div>
-          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">Total Replies</p>
-                <p className="text-2xl font-bold text-indigo-600">{stats.overview?.totalReplies || 0}</p>
-              </div>
-              <CheckCircle className="w-8 h-8 text-indigo-400" />
-            </div>
-          </div>
-          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">Active Auto-Reply</p>
-                <p className="text-2xl font-bold text-purple-600">{stats.overview?.activeAutoReply || 0}</p>
-              </div>
-              <TrendingUp className="w-8 h-8 text-purple-400" />
-            </div>
-          </div>
-          <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">Recent Signups</p>
-                <p className="text-2xl font-bold text-orange-600">{stats.overview?.recentSignups || 0}</p>
-              </div>
-              <Users className="w-8 h-8 text-orange-400" />
-            </div>
-          </div>
+            );
+          })}
         </div>
       )}
 
@@ -162,32 +292,32 @@ const SuperAdminDashboard = memo(function SuperAdminDashboard({
                 type="text"
                 placeholder="Search by name or email..."
                 value={filters.search}
-                onChange={(e) => updateFilters({ ...filters, search: e.target.value })}
+                onChange={handleSearchChange}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent"
               />
             </div>
           </div>
           <select
             value={filters.trialStatus}
-            onChange={(e) => updateFilters({ ...filters, trialStatus: e.target.value })}
+            onChange={handleTrialStatusChange}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent"
           >
-            <option value="all">All Trial Status</option>
-            <option value="not_started">Not Started</option>
-            <option value="active">Active</option>
-            <option value="expired">Expired</option>
-            <option value="converted">Converted</option>
+            {filterOptions.trial.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
           <select
             value={filters.subscriptionStatus}
-            onChange={(e) => updateFilters({ ...filters, subscriptionStatus: e.target.value })}
+            onChange={handleSubscriptionStatusChange}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent"
           >
-            <option value="all">All Subscription</option>
-            <option value="active">Active</option>
-            <option value="cancelled">Cancelled</option>
-            <option value="expired">Expired</option>
-            <option value="suspended">Suspended</option>
+            {filterOptions.subscription.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </div>
       </div>
@@ -212,12 +342,12 @@ const SuperAdminDashboard = memo(function SuperAdminDashboard({
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
                   </td>
                 </tr>
-              ) : businesses.length === 0 ? (
+              ) : resolvedBusinesses.length === 0 ? (
                 <tr>
                   <td colSpan="5" className="px-4 py-8 text-center text-gray-500">No businesses found</td>
                 </tr>
               ) : (
-                businesses.map((business) => (
+                resolvedBusinesses.map((business) => (
                   <tr key={business._id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
                       <div>
@@ -278,22 +408,20 @@ const SuperAdminDashboard = memo(function SuperAdminDashboard({
         </div>
 
         {/* Pagination */}
-        {pagination.pages > 1 && (
+        {paginationMeta.pages > 1 && (
           <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between">
-            <p className="text-sm text-gray-500">
-              Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}
-            </p>
+            <p className="text-sm text-gray-500">{paginationLabel}</p>
             <div className="flex gap-2">
               <button
-                onClick={() => changePage(pagination.page - 1)}
-                disabled={pagination.page === 1}
+                onClick={() => handlePageChange(paginationMeta.page - 1)}
+                disabled={paginationMeta.page === 1}
                 className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Previous
               </button>
               <button
-                onClick={() => changePage(pagination.page + 1)}
-                disabled={pagination.page >= pagination.pages}
+                onClick={() => handlePageChange(paginationMeta.page + 1)}
+                disabled={paginationMeta.page >= paginationMeta.pages}
                 className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Next
@@ -357,55 +485,23 @@ const SuperAdminDashboard = memo(function SuperAdminDashboard({
               </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-500">Name</p>
-                <p className="font-medium">{selectedBusiness.name || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Email</p>
-                <p className="font-medium">{selectedBusiness.email || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Role</p>
-                <p className="font-medium">{selectedBusiness.role || 'user'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Trial Status</p>
-                {getTrialStatusBadge(selectedBusiness.trial)}
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Subscription</p>
-                {getSubscriptionBadge(selectedBusiness.subscription)}
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Auto-Reply Enabled</p>
-                <p className="font-medium">{selectedBusiness.autoReplySettings?.enabled ? 'Yes' : 'No'}</p>
-              </div>
+              {detailSummaryItems.map((item) => (
+                <div key={item.label}>
+                  <p className="text-sm text-gray-500">{item.label}</p>
+                  {item.isNode ? <div className="font-medium">{item.value}</div> : <p className="font-medium">{item.value}</p>}
+                </div>
+              ))}
             </div>
             {selectedBusiness.stats && (
               <div className="mt-6">
                 <h4 className="font-semibold mb-3">Statistics</h4>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-500">Total Reviews</p>
-                    <p className="text-xl font-bold">{selectedBusiness.stats.totalReviews || 0}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Total Tasks</p>
-                    <p className="text-xl font-bold">{selectedBusiness.stats.totalTasks || 0}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Sent Replies</p>
-                    <p className="text-xl font-bold">{selectedBusiness.stats.sentReplies || 0}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Pending</p>
-                    <p className="text-xl font-bold">{selectedBusiness.stats.pendingTasks || 0}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Failed</p>
-                    <p className="text-xl font-bold">{selectedBusiness.stats.failedTasks || 0}</p>
-                  </div>
+                  {detailStatsItems.map((stat) => (
+                    <div key={stat.label}>
+                      <p className="text-sm text-gray-500">{stat.label}</p>
+                      <p className="text-xl font-bold">{stat.value}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

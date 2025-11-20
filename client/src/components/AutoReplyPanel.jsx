@@ -1,5 +1,14 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Loader2, RefreshCcw, Clock, CheckCircle, AlertTriangle, Play } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import {
+  Loader2,
+  RefreshCcw,
+  Clock,
+  CheckCircle,
+  AlertTriangle,
+  Play,
+  Send,
+  BarChart3
+} from 'lucide-react';
 import { AUTO_REPLY_DELAY_OPTIONS, AUTO_REPLY_TONES } from '../utils/constants';
 
 const statusStyles = {
@@ -16,16 +25,21 @@ const formatDate = (value) => {
   return new Date(value).toLocaleString();
 };
 
-const statsCards = (stats) => [
-  { label: 'Pending', value: stats.totals?.detected || 0, icon: Clock },
-  { label: 'Scheduled', value: stats.totals?.scheduled || 0, icon: Clock },
-  { label: 'Sent (7d)', value: stats.sentLast7d || 0, icon: CheckCircle },
-  {
-    label: 'Failed',
-    value: (stats.totals?.generation_failed || 0) + (stats.totals?.delivery_failed || 0),
-    icon: AlertTriangle
-  }
-];
+const statsCards = (stats) => {
+  const failed =
+    stats.failedTotal !== undefined
+      ? stats.failedTotal
+      : (stats.totals?.generation_failed || 0) + (stats.totals?.delivery_failed || 0);
+
+  return [
+    { label: 'Pending', value: stats.totals?.detected || 0, icon: Clock },
+    { label: 'Scheduled', value: stats.totals?.scheduled || 0, icon: Clock },
+    { label: 'Sent', value: stats.totals?.sent || 0, icon: Send },
+    { label: 'Sent (7d)', value: stats.sentLast7d || 0, icon: CheckCircle },
+    { label: 'Failed', value: failed, icon: AlertTriangle },
+    { label: 'Total Sent', value: stats.sentAllTime || 0, icon: BarChart3 }
+  ];
+};
 
 const formatDelayLabel = (minutes) => {
   if (minutes < 60) {
@@ -39,17 +53,30 @@ const formatDelayLabel = (minutes) => {
   return `${hours} hour${hours === 1 ? '' : 's'}`;
 };
 
+const formatReviewSnippet = (text) => {
+  if (!text) return 'No review text';
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= 90) return normalized;
+  return `${normalized.slice(0, 90)}…`;
+};
+
 const TASK_TABS = [
+  { id: 'new', label: 'New Review' },
   { id: 'queue', label: 'Queue' },
-  { id: 'sent', label: 'AI Replies' }
+  { id: 'sent', label: 'AI Replies' },
+  { id: 'all', label: 'Show All' }
 ];
+
+const TAB_REFRESH_COOLDOWN_MS = 8000;
 
 export default function AutoReplyPanel({
   settings,
   stats,
   tasks,
+  newReviews,
   options,
   tasksLoading,
+  newReviewsLoading,
   saving,
   running,
   error,
@@ -57,67 +84,141 @@ export default function AutoReplyPanel({
   triggerRun,
   retryTask,
   refreshTasks,
+  refreshNewReviews,
+  refreshStats,
   settingsReady,
-  settingsLoading
+  settingsLoading,
+  statsLoading
 }) {
-  const delayOptions = options?.delayMinutes?.length ? options.delayMinutes : AUTO_REPLY_DELAY_OPTIONS;
-  const toneOptions = options?.tones?.length ? options.tones : AUTO_REPLY_TONES;
-  const [taskTab, setTaskTab] = useState('queue');
+  const { delayMinutes = [], tones = [] } = options || {};
+  const delayOptions = useMemo(
+    () => (delayMinutes.length ? delayMinutes : AUTO_REPLY_DELAY_OPTIONS),
+    [delayMinutes]
+  );
+  const toneOptions = useMemo(() => (tones.length ? tones : AUTO_REPLY_TONES), [tones]);
+  const delayOptionItems = useMemo(
+    () => delayOptions.map((option) => ({ value: option, label: formatDelayLabel(option) })),
+    [delayOptions]
+  );
+  const toneOptionItems = useMemo(
+    () =>
+      toneOptions.map((tone) => ({
+        value: tone,
+        label: tone.charAt(0).toUpperCase() + tone.slice(1)
+      })),
+    [toneOptions]
+  );
+  const [taskTab, setTaskTab] = useState('new');
+  const refreshMetaRef = useRef({ new: 0, queue: 0, sent: 0, all: 0 });
 
-  const currentTaskFilter = useMemo(() => (taskTab === 'sent' ? { status: 'sent' } : {}), [taskTab]);
+  const cards = useMemo(() => statsCards(stats), [stats]);
+  const currentTaskFilter = useMemo(() => {
+    if (taskTab === 'sent') return { status: 'sent' };
+    if (taskTab === 'queue' || taskTab === 'all') return {};
+    return null; // 'new' view uses newReviews
+  }, [taskTab]);
+
+  const isNewView = taskTab === 'new';
+  const taskTabDescription = useMemo(() => {
+    switch (taskTab) {
+      case 'new':
+        return 'Showing newly detected reviews in the last 24 hours.';
+      case 'sent':
+        return 'Showing replies successfully posted.';
+      case 'all':
+        return 'Showing all tracked auto-reply tasks.';
+      default:
+        return 'Monitoring the active queue.';
+    }
+  }, [taskTab]);
+
+  const filteredTasks = useMemo(() => {
+    if (taskTab === 'queue') {
+      return tasks.filter((task) => task.status !== 'sent');
+    }
+    if (taskTab === 'sent') {
+      return tasks.filter((task) => task.status === 'sent');
+    }
+    return tasks;
+  }, [tasks, taskTab]);
+
+  const activeListMeta = useMemo(() => {
+    const list = isNewView ? newReviews : filteredTasks;
+    const loading = isNewView ? newReviewsLoading : tasksLoading;
+    return {
+      list,
+      loading,
+      showInitialLoader: loading && list.length === 0
+    };
+  }, [filteredTasks, isNewView, newReviews, newReviewsLoading, tasksLoading]);
+
+  const { list: activeList, loading: activeListLoading, showInitialLoader } = activeListMeta;
+  const manualRefreshDisabled = activeListLoading;
 
   useEffect(() => {
     if (!settingsReady) return;
-    refreshTasks(currentTaskFilter);
-  }, [taskTab, refreshTasks, currentTaskFilter, settingsReady]);
 
-  const handleToggle = async (field, value) => {
-    try {
-      await saveSettings({ [field]: value });
-    } catch (err) {
-      console.error('Failed to toggle auto-reply setting', err);
+    const now = Date.now();
+    const lastFetch = refreshMetaRef.current[taskTab] || 0;
+    if (now - lastFetch < TAB_REFRESH_COOLDOWN_MS) {
+      return;
     }
-  };
+    refreshMetaRef.current[taskTab] = now;
 
-  const handleSelectChange = async (field, event) => {
-    const value = field === 'delayMinutes' ? Number(event.target.value) : event.target.value;
-    try {
-      await saveSettings({ [field]: value });
-    } catch (err) {
-      console.error('Failed to update auto-reply select option', err);
+    if (isNewView) {
+      refreshNewReviews();
+    } else {
+      refreshTasks(currentTaskFilter || {});
     }
-  };
+  }, [taskTab, settingsReady, isNewView, currentTaskFilter, refreshNewReviews, refreshTasks]);
 
-  useEffect(() => {
-    if (!settingsReady || !settings.enabled) return;
-    const intervalId = setInterval(() => {
-      refreshTasks(currentTaskFilter);
-    }, 8000);
-    return () => clearInterval(intervalId);
-  }, [settingsReady, settings.enabled, refreshTasks, currentTaskFilter]);
+  const handleToggle = useCallback(
+    async (field, value) => {
+      try {
+        await saveSettings({ [field]: value });
+      } catch {
+        // Parent hook surfaces errors in UI; suppress console noise.
+      }
+    },
+    [saveSettings]
+  );
 
-  const formatReviewSnippet = (text) => {
-    if (!text) return 'No review text';
-    const normalized = text.replace(/\s+/g, ' ').trim();
-    if (normalized.length <= 90) return normalized;
-    return `${normalized.slice(0, 90)}…`;
-  };
+  const handleSelectChange = useCallback(
+    async (field, event) => {
+      const value = field === 'delayMinutes' ? Number(event.target.value) : event.target.value;
+      try {
+        await saveSettings({ [field]: value });
+      } catch {
+        // Parent hook surfaces errors in UI; suppress console noise.
+      }
+    },
+    [saveSettings]
+  );
 
-  const handleManualRefresh = () => {
-    refreshTasks(currentTaskFilter);
-  };
+  // Polling interval removed - WebSocket now handles real-time updates
 
-  const handleRunNow = async () => {
+  const handleManualRefresh = useCallback(() => {
+    if (manualRefreshDisabled) return;
+
+    refreshMetaRef.current[taskTab] = Date.now();
+    if (isNewView) {
+      refreshNewReviews();
+    } else {
+      refreshTasks(currentTaskFilter || {});
+    }
+  }, [manualRefreshDisabled, taskTab, isNewView, refreshNewReviews, refreshTasks, currentTaskFilter]);
+
+  const handleRunNow = useCallback(async () => {
     await triggerRun();
-    refreshTasks(currentTaskFilter);
-  };
+  }, [triggerRun]);
 
-  const handleRetry = async (taskId) => {
-    await retryTask(taskId);
-    refreshTasks(currentTaskFilter);
-  };
+  const handleRetry = useCallback(
+    async (taskId) => {
+      await retryTask(taskId);
+    },
+    [retryTask]
+  );
 
-  const isTaskListLoading = tasksLoading && tasks.length === 0;
   const isSettingsSyncing = settingsLoading;
   const controlsDisabled = saving || isSettingsSyncing;
 
@@ -156,14 +257,21 @@ export default function AutoReplyPanel({
           </div>
         </div>
         <div className="flex gap-3">
-          <button
-            onClick={handleRunNow}
-            disabled={running || !settings.enabled}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-600 text-white text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {running ? <Loader2 className="animate-spin" size={16} /> : <Play size={14} />}
-            Run Now
-          </button>
+          {settings.enabled ? (
+            <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-xs text-gray-600">
+              <Play size={12} className="text-green-500" />
+              Auto-reply runs continuously. No manual action needed.
+            </div>
+          ) : (
+            <button
+              onClick={handleRunNow}
+              disabled={running}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-600 text-white text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {running ? <Loader2 className="animate-spin" size={16} /> : <Play size={14} />}
+              Run Now
+            </button>
+          )}
         </div>
       </div>
 
@@ -174,9 +282,9 @@ export default function AutoReplyPanel({
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-700">Auto-Reply Status</span>
+              <span className="text-sm font-medium text-gray-700">Auto-Reply Status</span>
             <label className="inline-flex items-center cursor-pointer">
               <span className="mr-2 text-xs text-gray-500">{settings.enabled ? 'ON' : 'OFF'}</span>
               <input
@@ -202,11 +310,11 @@ export default function AutoReplyPanel({
               className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-500"
               value={settings.delayMinutes}
               onChange={(e) => handleSelectChange('delayMinutes', e)}
-              disabled={!settings.enabled || controlsDisabled}
+              disabled={controlsDisabled}
             >
-              {delayOptions.map((option) => (
-                <option key={option} value={option}>
-                  {formatDelayLabel(option)}
+              {delayOptionItems.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
                 </option>
               ))}
             </select>
@@ -218,22 +326,22 @@ export default function AutoReplyPanel({
               className="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-500"
               value={settings.tone}
               onChange={(e) => handleSelectChange('tone', e)}
-              disabled={!settings.enabled || controlsDisabled}
+              disabled={controlsDisabled}
             >
-              {toneOptions.map((tone) => (
-                <option key={tone} value={tone}>
-                  {tone.charAt(0).toUpperCase() + tone.slice(1)}
+              {toneOptionItems.map((tone) => (
+                <option key={tone.value} value={tone.value}>
+                  {tone.label}
                 </option>
               ))}
             </select>
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 gap-1.5">
             {['respondToPositive', 'respondToNeutral', 'respondToNegative'].map((field) => (
               <button
                 key={field}
                 onClick={() => handleToggle(field, !settings[field])}
-                disabled={!settings.enabled || controlsDisabled}
+                disabled={controlsDisabled}
                 className={`text-xs py-2 rounded-lg border ${
                   settings[field]
                     ? 'bg-gray-50 border-gray-200 text-gray-700'
@@ -247,25 +355,41 @@ export default function AutoReplyPanel({
         </div>
 
         <div className="lg:col-span-2">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-            {statsCards(stats).map((card) => (
-              <div key={card.label} className="p-4 rounded-xl border border-gray-100 bg-gray-50">
-                <div className="flex items-center gap-2 text-gray-500 text-xs font-semibold uppercase">
-                  <card.icon size={14} />
-                  {card.label}
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2 ">
+            <p className="text-sm font-semibold text-gray-600">Realtime Stats</p>
+            <button
+              onClick={refreshStats}
+              disabled={statsLoading}
+              className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <RefreshCcw size={11} className={statsLoading ? 'animate-spin' : ''} />
+              Refresh
+            </button>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 mb-3">
+            {cards.map((card, index) => (
+              <div
+                key={card.label}
+                className="px-3 py-2.5 rounded-lg border border-transparent bg-white shadow-[0_1px_2px_rgba(16,24,40,0.05)]"
+              >
+                <div className="flex items-center gap-1.5 text-gray-500 text-[11px] font-semibold uppercase tracking-wide">
+                  <card.icon size={12} className="text-gray-400" />
+                  <span className="truncate">{card.label}</span>
                 </div>
-                <p className="text-2xl font-bold text-gray-900 mt-1">{card.value}</p>
+                <div className="mt-1.5 flex items-end justify-between">
+                  <span className="text-xl font-semibold text-gray-900">
+                    {statsLoading ? <Loader2 size={16} className="animate-spin text-gray-400" /> : card.value}
+                  </span>
+                  <span className="text-[10px] text-gray-400 font-medium">#{index + 1}</span>
+                </div>
               </div>
             ))}
           </div>
-
-          <div className="border border-gray-100 rounded-xl overflow-hidden">
-            <div className="bg-gray-50 px-4 py-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
+          <div className="border border-gray-100 rounded-xl">
+            <div className="bg-gray-50 px-3 py-2.5 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div className="space-y-0.5">
                 <p className="text-sm font-semibold text-gray-700">Recent Auto-Replies</p>
-                <p className="text-xs text-gray-500">
-                  {taskTab === 'sent' ? 'Showing replies successfully posted.' : 'Monitoring last 25 detected reviews.'}
-                </p>
+                <p className="text-xs text-gray-500">{taskTabDescription}</p>
               </div>
               <div className="flex items-center gap-2">
                 <div className="flex bg-white border border-gray-200 rounded-full p-1">
@@ -283,25 +407,27 @@ export default function AutoReplyPanel({
                 </div>
                 <button
                   onClick={handleManualRefresh}
-                  className="hidden sm:flex items-center gap-1 text-xs text-gray-600 hover:text-gray-700"
-                  disabled={tasksLoading}
+                  className="hidden sm:flex items-center gap-1 text-xs text-gray-600 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={manualRefreshDisabled}
                 >
                   <RefreshCcw size={12} /> Refresh
                 </button>
               </div>
             </div>
-            {isTaskListLoading ? (
-              <div className="flex items-center justify-center py-6 text-sm text-gray-500">
+            {showInitialLoader ? (
+              <div className="flex items-center justify-center py-5 text-sm text-gray-500">
                 <Loader2 className="animate-spin mr-2" size={16} />
                 Loading auto-reply data...
               </div>
-            ) : tasks.length === 0 ? (
-              <div className="py-8 text-center text-sm text-gray-500">No auto-reply activity yet.</div>
+            ) : activeList.length === 0 ? (
+              <div className="py-6 text-center text-sm text-gray-500">
+                {isNewView ? 'No new reviews found in the last 24 hours.' : 'No auto-reply activity yet.'}
+              </div>
             ) : (
-              <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
-                {tasks.map((task) => (
-                  <div key={task._id} className="px-4 py-3 text-sm">
-                    <div className="flex items-center justify-between">
+              <div className="divide-y divide-gray-100 max-h-72 overflow-y-auto">
+                {activeList.map((task) => (
+                  <div key={task._id} className="px-3 py-2.5 text-sm">
+                    <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="font-semibold text-gray-900">{task.reviewerName}</p>
                         <p className="text-xs text-gray-500">{task.locationName}</p>

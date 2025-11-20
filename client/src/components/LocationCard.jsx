@@ -2,9 +2,31 @@ import React, { memo, useMemo } from 'react';
 import { MapPin } from 'lucide-react';
 import ReviewItem from './ReviewItem';
 
-const LocationCard = memo(function LocationCard({ location, replyText, sendingReply, onReplyTextChange, onReplySubmit, showHeader = true }) {
-  const reviews = useMemo(() => location.reviews || [], [location.reviews]);
-  
+const LocationCard = memo(function LocationCard({
+  location,
+  replyText,
+  sendingReply,
+  generatingReply,
+  onReplyTextChange,
+  onReplySubmit,
+  onGenerateReply,
+  showHeader = true
+}) {
+  const sourceReviews = location?.reviews;
+  const reviews = useMemo(() => (Array.isArray(sourceReviews) ? sourceReviews : []), [sourceReviews]);
+  const reviewItems = useMemo(
+    () =>
+      reviews.map((review) => ({
+        key: review.reviewId || review.name,
+        review
+      })),
+    [reviews]
+  );
+  const reviewCountLabel = useMemo(() => {
+    const count = reviews.length;
+    return `${count} ${count === 1 ? 'review' : 'reviews'}`;
+  }, [reviews.length]);
+
   if (reviews.length === 0) {
     return null;
   }
@@ -13,14 +35,16 @@ const LocationCard = memo(function LocationCard({ location, replyText, sendingRe
   if (!showHeader) {
     return (
       <div className="divide-y divide-gray-100 max-h-[70vh] sm:max-h-[600px] overflow-y-auto scroll-smooth">
-        {reviews.map((review) => (
+        {reviewItems.map(({ key, review }) => (
           <ReviewItem
-            key={review.reviewId || review.name}
+            key={key}
             review={review}
             replyText={replyText}
             sendingReply={sendingReply}
+            generatingReply={generatingReply}
             onReplyTextChange={onReplyTextChange}
             onReplySubmit={onReplySubmit}
+            onGenerateReply={onGenerateReply}
           />
         ))}
       </div>
@@ -39,20 +63,22 @@ const LocationCard = memo(function LocationCard({ location, replyText, sendingRe
           </h2>
         </div>
         <span className="text-xs bg-white border border-gray-200 text-gray-600 px-2 sm:px-3 py-1 rounded-full font-medium flex-shrink-0 ml-2">
-          {reviews.length} {reviews.length === 1 ? 'review' : 'reviews'}
+          {reviewCountLabel}
         </span>
       </div>
 
       {/* Reviews List */}
       <div className="divide-y divide-gray-100 max-h-[70vh] sm:max-h-[600px] overflow-y-auto scroll-smooth">
-        {reviews.map((review) => (
+        {reviewItems.map(({ key, review }) => (
           <ReviewItem
-            key={review.reviewId || review.name}
+            key={key}
             review={review}
             replyText={replyText}
             sendingReply={sendingReply}
+            generatingReply={generatingReply}
             onReplyTextChange={onReplyTextChange}
             onReplySubmit={onReplySubmit}
+            onGenerateReply={onGenerateReply}
           />
         ))}
       </div>

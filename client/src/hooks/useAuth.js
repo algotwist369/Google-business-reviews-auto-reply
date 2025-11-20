@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '../services/api';
 
 export const useAuth = () => {
@@ -16,29 +16,54 @@ export const useAuth = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const requestRef = useRef(null);
+
   useEffect(() => {
     const loadUser = async () => {
-      if (token) {
-        try {
-          const response = await api.getProfile(token);
-          console.log('User profile loaded:', response.data); // Debug log
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
+      if (requestRef.current) {
+        requestRef.current.abort();
+      }
+
+      const controller = new AbortController();
+      requestRef.current = controller;
+
+      try {
+        const response = await api.getProfile(token, { signal: controller.signal });
+        if (!controller.signal.aborted) {
           setUser(response.data);
-        } catch (error) {
-          console.error('Failed to load user profile:', error);
-          // If token is invalid, clear it
-          if (error.response?.status === 401) {
-            localStorage.removeItem('authToken');
-            setToken(null);
-          }
-        } finally {
+        }
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+        console.error('Failed to load user profile:', error);
+        if (error.response?.status === 401) {
+          localStorage.removeItem('authToken');
+          setToken(null);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
           setLoading(false);
         }
-      } else {
-        setLoading(false);
+        if (requestRef.current === controller) {
+          requestRef.current = null;
+        }
       }
     };
 
     loadUser();
+
+    return () => {
+      if (requestRef.current) {
+        requestRef.current.abort();
+        requestRef.current = null;
+      }
+    };
   }, [token]);
 
   const logout = () => {

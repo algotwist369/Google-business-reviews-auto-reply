@@ -1,15 +1,18 @@
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import { API_URL } from '../utils/constants';
 
-const highlights = [
+const highlightItems = Object.freeze([
   'Auto-detects new & unreplied Google reviews',
   'LLM powered, human-quality replies in your tone',
   'Configurable delays, tones, and sentiment rules',
   'Keeps running until you pause it - no manual babysitting'
-];
+]);
 
 const Login = memo(function Login() {
+  const highlights = useMemo(() => highlightItems, []);
+  const authUrl = useMemo(() => `${API_URL}/auth/google`, []);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-slate-50 to-slate-100 text-gray-900 flex items-center justify-center px-4 py-10">
       <div className="max-w-5xl w-full grid gap-6 lg:gap-8 lg:grid-cols-2 items-center">
@@ -49,7 +52,7 @@ const Login = memo(function Login() {
           </p>
 
           <a
-            href={`${API_URL}/auth/google`}
+            href={authUrl}
             className="block w-full bg-gray-900 hover:bg-black text-white font-semibold py-3 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:  transform hover:-translate-y-0.5 active:scale-[0.99]"
             aria-label="Sign in with Google"
           >

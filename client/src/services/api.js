@@ -5,6 +5,14 @@ const getAuthHeaders = (token) => ({
   Authorization: `Bearer ${token}`
 });
 
+const withAuthConfig = (token, config = {}) => ({
+  ...config,
+  headers: {
+    ...getAuthHeaders(token),
+    ...(config.headers || {})
+  }
+});
+
 export const api = {
   /**
    * Get reviews with optional filtering, sorting, and pagination
@@ -57,8 +65,24 @@ export const api = {
     return response.data;
   },
 
+  generateAiReply: async (token, payload) => {
+    const response = await axios.post(
+      `${API_URL}/api/reviews/ai-reply`,
+      payload,
+      { headers: getAuthHeaders(token) }
+    );
+    return response.data;
+  },
+
   getAutoReplyConfig: async (token) => {
     const response = await axios.get(`${API_URL}/api/auto-reply/config`, {
+      headers: getAuthHeaders(token)
+    });
+    return response.data;
+  },
+
+  getAutoReplyStats: async (token) => {
+    const response = await axios.get(`${API_URL}/api/auto-reply/stats`, {
       headers: getAuthHeaders(token)
     });
     return response.data;
@@ -75,6 +99,14 @@ export const api = {
 
   getAutoReplyTasks: async (token, params = {}) => {
     const response = await axios.get(`${API_URL}/api/auto-reply/tasks`, {
+      headers: getAuthHeaders(token),
+      params
+    });
+    return response.data;
+  },
+
+  getNewReviews: async (token, params = {}) => {
+    const response = await axios.get(`${API_URL}/api/auto-reply/new-reviews`, {
       headers: getAuthHeaders(token),
       params
     });
@@ -159,10 +191,46 @@ export const api = {
   },
 
   // User profile
-  getProfile: async (token) => {
-    const response = await axios.get(`${API_URL}/api/user/profile`, {
-      headers: getAuthHeaders(token)
-    });
+  getProfile: async (token, config) => {
+    const response = await axios.get(`${API_URL}/api/user/profile`, withAuthConfig(token, config));
+    return response.data;
+  },
+
+  // Payment APIs
+  getSubscriptionPlans: async (token, config) => {
+    const response = await axios.get(`${API_URL}/api/payment/plans`, withAuthConfig(token, config));
+    return response.data;
+  },
+
+  getSubscriptionStatus: async (token, config) => {
+    const response = await axios.get(`${API_URL}/api/payment/subscription`, withAuthConfig(token, config));
+    return response.data;
+  },
+
+  createCheckoutSession: async (token, plan, config) => {
+    const response = await axios.post(
+      `${API_URL}/api/payment/checkout`,
+      { plan },
+      withAuthConfig(token, config)
+    );
+    return response.data;
+  },
+
+  verifyRazorpayPayment: async (token, payload, config) => {
+    const response = await axios.post(
+      `${API_URL}/api/payment/verify`,
+      payload,
+      withAuthConfig(token, config)
+    );
+    return response.data;
+  },
+
+  cancelSubscription: async (token, config) => {
+    const response = await axios.post(
+      `${API_URL}/api/payment/cancel`,
+      {},
+      withAuthConfig(token, config)
+    );
     return response.data;
   }
 };
