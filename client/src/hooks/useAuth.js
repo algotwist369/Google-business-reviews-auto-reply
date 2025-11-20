@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { toast } from 'react-hot-toast';
 import { api } from '../services/api';
 
 export const useAuth = () => {
@@ -41,7 +42,7 @@ export const useAuth = () => {
         if (controller.signal.aborted) {
           return;
         }
-        console.error('Failed to load user profile:', error);
+        toast.error('Failed to load your profile. Please sign in again.');
         if (error.response?.status === 401) {
           localStorage.removeItem('authToken');
           setToken(null);

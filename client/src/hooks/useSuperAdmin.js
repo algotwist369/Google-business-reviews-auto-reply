@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { toast } from 'react-hot-toast';
 import { api } from '../services/api';
 import { useWebSocket } from './useWebSocket';
 import { debounce } from '../utils/debounce';
@@ -36,7 +37,7 @@ export const useSuperAdmin = (token) => {
         setError(null);
         return;
       }
-      console.error('Error loading stats:', err);
+      toast.error('Failed to load statistics.');
       setError(err.response?.data?.error || 'Failed to load statistics');
     }
   }, [token]);
@@ -75,7 +76,7 @@ export const useSuperAdmin = (token) => {
         setError(null);
         return;
       }
-      console.error('Error loading businesses:', err);
+      toast.error('Failed to load businesses.');
       setError(err.response?.data?.error || 'Failed to load businesses');
     } finally {
       setBusinessesLoading(false);
@@ -90,7 +91,7 @@ export const useSuperAdmin = (token) => {
       setSelectedBusiness(response.data);
       return response.data;
     } catch (err) {
-      console.error('Error loading business details:', err);
+      toast.error('Failed to load business details.');
       setError(err.response?.data?.error || 'Failed to load business details');
       throw err;
     }
@@ -103,7 +104,7 @@ export const useSuperAdmin = (token) => {
       // WebSocket will automatically refresh via 'superAdmin:business:updated' event
       return response;
     } catch (err) {
-      console.error('Error enabling trial:', err);
+      toast.error('Failed to enable trial.');
       setError(err.response?.data?.error || 'Failed to enable trial');
       throw err;
     }
@@ -116,7 +117,7 @@ export const useSuperAdmin = (token) => {
       // WebSocket will automatically refresh via 'superAdmin:business:updated' event
       return response;
     } catch (err) {
-      console.error('Error disabling trial:', err);
+      toast.error('Failed to disable trial.');
       setError(err.response?.data?.error || 'Failed to disable trial');
       throw err;
     }
@@ -129,7 +130,7 @@ export const useSuperAdmin = (token) => {
       // WebSocket will automatically refresh via 'superAdmin:business:updated' event
       return response;
     } catch (err) {
-      console.error('Error updating subscription:', err);
+      toast.error('Failed to update subscription.');
       setError(err.response?.data?.error || 'Failed to update subscription');
       throw err;
     }
@@ -142,7 +143,7 @@ export const useSuperAdmin = (token) => {
       // WebSocket will automatically refresh via 'superAdmin:business:updated' event
       return response;
     } catch (err) {
-      console.error('Error updating role:', err);
+      toast.error('Failed to update role.');
       setError(err.response?.data?.error || 'Failed to update role');
       throw err;
     }

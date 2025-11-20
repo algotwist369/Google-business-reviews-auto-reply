@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, lazy, Suspense, useMemo } from 'react';
+import { toast } from 'react-hot-toast';
 import { useAuth } from './hooks/useAuth';
 import { useReviews } from './hooks/useReviews';
 import { useFilterAndSort } from './hooks/useFilterAndSort';
@@ -146,7 +147,7 @@ export default function App() {
           setShowTrialModal(true);
         }
       } catch (err) {
-        console.error('Failed to load subscription status', err);
+        toast.error('Failed to load subscription status. Please try again.');
       }
     };
 

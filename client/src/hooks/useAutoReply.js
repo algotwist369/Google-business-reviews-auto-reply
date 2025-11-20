@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { toast } from 'react-hot-toast';
 import { api } from '../services/api';
 import { useWebSocket } from './useWebSocket';
 import { debounce } from '../utils/debounce';
@@ -62,7 +63,7 @@ export const useAutoReply = (token) => {
         setError(null);
         return;
       }
-      console.error('Failed to load auto-reply settings', err);
+      toast.error('Unable to load auto-reply settings.');
       setError('Unable to load auto-reply settings.');
     } finally {
       setLoading(false);
@@ -87,7 +88,7 @@ export const useAutoReply = (token) => {
       } catch (err) {
         // Don't show errors for 401/403/429 (unauthorized/rate limited)
         if (err?.response?.status !== 401 && err?.response?.status !== 403 && err?.response?.status !== 429) {
-          console.error('Failed to fetch auto-reply tasks', err);
+          toast.error('Unable to refresh auto-reply tasks.');
         }
       } finally {
         setTasksLoading(false);
@@ -114,7 +115,7 @@ export const useAutoReply = (token) => {
       } catch (err) {
         // Don't show errors for 401/403/429 (unauthorized/rate limited)
         if (err?.response?.status !== 401 && err?.response?.status !== 403 && err?.response?.status !== 429) {
-          console.error('Failed to fetch new reviews', err);
+          toast.error('Unable to refresh new reviews.');
         }
       } finally {
         setNewReviewsLoading(false);
@@ -138,7 +139,7 @@ export const useAutoReply = (token) => {
       setStats(response.data || EMPTY_STATS);
     } catch (err) {
       if (err?.response?.status !== 401 && err?.response?.status !== 403 && err?.response?.status !== 429) {
-        console.error('Failed to fetch auto-reply stats', err);
+        toast.error('Unable to refresh auto-reply stats.');
       }
     } finally {
       setStatsLoading(false);
@@ -161,7 +162,7 @@ export const useAutoReply = (token) => {
         setRamaReplies(response.data || []);
       } catch (err) {
         if (err?.response?.status !== 401 && err?.response?.status !== 403 && err?.response?.status !== 429) {
-          console.error('Failed to fetch Rama replies', err);
+          toast.error('Unable to refresh Rama replies.');
         }
       } finally {
         setRamaRepliesLoading(false);
@@ -183,7 +184,7 @@ export const useAutoReply = (token) => {
       } catch (err) {
         // Don't show errors for 401/403 (unauthorized)
         if (err?.response?.status !== 401 && err?.response?.status !== 403) {
-          console.error('Failed to update auto-reply settings', err);
+          toast.error('Unable to update auto-reply settings.');
           setError('Unable to update auto-reply settings.');
         }
         throw err;
@@ -205,7 +206,7 @@ export const useAutoReply = (token) => {
     } catch (err) {
       // Don't show errors for 401/403 (unauthorized)
       if (err?.response?.status !== 401 && err?.response?.status !== 403) {
-        console.error('Failed to trigger auto-reply run', err);
+        toast.error('Unable to trigger auto-reply run.');
         setError('Unable to trigger auto-reply run.');
       }
     } finally {
@@ -223,7 +224,7 @@ export const useAutoReply = (token) => {
       } catch (err) {
         // Don't show errors for 401/403 (unauthorized)
         if (err?.response?.status !== 401 && err?.response?.status !== 403) {
-          console.error('Failed to retry task', err);
+          toast.error('Unable to retry task.');
           setError('Unable to retry task.');
         }
       }

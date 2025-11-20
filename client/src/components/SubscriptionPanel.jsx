@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { toast } from 'react-hot-toast';
 import { api } from '../services/api';
 import { CreditCard, Check, Loader2 } from 'lucide-react';
 
@@ -89,10 +90,12 @@ export default function SubscriptionPanel({ token }) {
         try {
           setProcessingPlan(planKey);
           const response = await api.createCheckoutSession(token, planKey);
-          if (response.success) {
-            await loadData();
-            alert('Switched to free plan successfully!');
-          }
+        if (response.success) {
+          await loadData();
+          toast.success('Switched to free plan successfully!');
+        } else {
+          toast.error('Unable to switch to the free plan. Please try again.');
+        }
         } catch (err) {
           setError(err.response?.data?.error || 'Failed to switch plan.');
         } finally {
@@ -137,10 +140,10 @@ export default function SubscriptionPanel({ token }) {
           handler: async (paymentResponse) => {
             try {
               await api.verifyRazorpayPayment(token, paymentResponse);
-              alert('Payment verified! Your subscription is now active.');
+              toast.success('Payment verified! Your subscription is now active.');
               await loadData();
             } catch (err) {
-              alert(err.response?.data?.error || 'Payment verification failed. Please contact support.');
+              toast.error(err.response?.data?.error || 'Payment verification failed. Please contact support.');
             } finally {
               setProcessingPlan(null);
             }
@@ -180,7 +183,7 @@ export default function SubscriptionPanel({ token }) {
       setError(null);
       await api.cancelSubscription(token);
       await loadData();
-      alert('Subscription cancelled. You have been moved to the Free plan.');
+      toast.success('Subscription cancelled. You have been moved to the Free plan.');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to cancel subscription.');
     } finally {

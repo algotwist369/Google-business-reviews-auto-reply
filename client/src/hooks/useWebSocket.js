@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
+import { toast } from 'react-hot-toast';
 import { io } from 'socket.io-client';
 import { API_URL } from '../utils/constants';
 
@@ -61,6 +62,7 @@ export const useWebSocket = (token, onConnect, onDisconnect) => {
 
     socket.on('connect', () => {
       console.log('WebSocket connected');
+      toast.dismiss('ws-connection-error');
       isConnectingRef.current = false;
       if (onConnect) onConnect();
     });
@@ -71,8 +73,10 @@ export const useWebSocket = (token, onConnect, onDisconnect) => {
       if (onDisconnect) onDisconnect(reason);
     });
 
-    socket.on('connect_error', (error) => {
-      console.error('WebSocket connection error:', error);
+    socket.on('connect_error', () => {
+      toast.error('Live updates disconnected. Attempting to reconnect…', {
+        id: 'ws-connection-error'
+      });
       isConnectingRef.current = false;
     });
 

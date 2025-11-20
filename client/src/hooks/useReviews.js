@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { toast } from 'react-hot-toast';
 import { api } from '../services/api';
 import { useWebSocket } from './useWebSocket';
 
@@ -42,10 +43,11 @@ export const useReviews = (token, onUnauthorized) => {
       const status = err.response?.status;
       if (status === 401 && onUnauthorized) {
         onUnauthorized();
+        toast.error('Your session expired. Please sign in again.');
       } else if (status === 403) {
-        alert('Google authentication expired. Please reconnect your Google Business Profile account from the Profile & Billing panel.');
+        toast.error('Google authentication expired. Please reconnect from Profile & Billing.');
       } else if (status !== 429) {
-        console.error('Error loading reviews', err);
+        toast.error('Unable to load reviews. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -144,13 +146,12 @@ export const useReviews = (token, onUnauthorized) => {
     setSendingReply(reviewName);
     try {
       await api.replyToReview(token, reviewName, comment);
-      alert('Reply posted!');
+      toast.success('Reply posted!');
       setReplyText({ ...replyText, [reviewName]: '' });
       // WebSocket will automatically refresh reviews via 'review:replied' event
       // No need to manually call fetchReviews()
     } catch (err) {
-      console.error('Failed to reply', err);
-      alert('Failed to reply.');
+      toast.error('Failed to reply. Please try again.');
     } finally {
       setSendingReply(null);
     }
@@ -190,9 +191,9 @@ export const useReviews = (token, onUnauthorized) => {
       } catch (err) {
         if (err.response?.status === 401 && onUnauthorized) {
           onUnauthorized();
+          toast.error('Your session expired. Please sign in again.');
         } else if (err.response?.status !== 429) {
-          console.error('Failed to generate AI reply', err);
-          alert('Unable to generate AI reply right now.');
+          toast.error('Unable to generate AI reply right now.');
         }
       } finally {
         setGeneratingReply(null);
