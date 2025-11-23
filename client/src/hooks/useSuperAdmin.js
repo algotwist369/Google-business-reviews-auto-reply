@@ -118,8 +118,21 @@ export const useSuperAdmin = (token) => {
     try {
       const response = await api.enableTrial(token, businessId, days);
       toast.success(`Trial enabled for ${days} days.`);
-      // WebSocket will automatically refresh via 'superAdmin:business:updated' event
-      // Also trigger immediate refresh to ensure UI updates
+      // Immediately update the business in the businesses array
+      if (response?.data?.trial) {
+        setBusinesses(prevBusinesses => {
+          return prevBusinesses.map(business => {
+            if (business._id === businessId) {
+              return {
+                ...business,
+                trial: response.data.trial
+              };
+            }
+            return business;
+          });
+        });
+      }
+      // WebSocket will also trigger an update, and refresh to ensure sync
       if (debouncedLoadBothRef.current) {
         debouncedLoadBothRef.current();
       } else {
@@ -140,8 +153,21 @@ export const useSuperAdmin = (token) => {
     try {
       const response = await api.disableTrial(token, businessId);
       toast.success('Trial disabled successfully.');
-      // WebSocket will automatically refresh via 'superAdmin:business:updated' event
-      // Also trigger immediate refresh to ensure UI updates
+      // Immediately update the business in the businesses array
+      if (response?.data?.trial) {
+        setBusinesses(prevBusinesses => {
+          return prevBusinesses.map(business => {
+            if (business._id === businessId) {
+              return {
+                ...business,
+                trial: response.data.trial
+              };
+            }
+            return business;
+          });
+        });
+      }
+      // WebSocket will also trigger an update, and refresh to ensure sync
       if (debouncedLoadBothRef.current) {
         debouncedLoadBothRef.current();
       } else {
@@ -271,9 +297,26 @@ export const useSuperAdmin = (token) => {
       debouncedLoadBusinesses();
     });
 
-    // Subscribe to business updated (debounced)
-    const unsubscribeBusinessUpdated = subscribe('superAdmin:business:updated', () => {
-      // Refresh both stats and businesses when a business is updated
+    // Subscribe to business updated - update immediately and refresh
+    const unsubscribeBusinessUpdated = subscribe('superAdmin:business:updated', (payload) => {
+      if (payload && payload.businessId) {
+        // Immediately update the business in the businesses array
+        setBusinesses(prevBusinesses => {
+          return prevBusinesses.map(business => {
+            if (business._id === payload.businessId) {
+              // Update the business with new data from payload
+              return {
+                ...business,
+                ...(payload.trial && { trial: payload.trial }),
+                ...(payload.subscription && { subscription: payload.subscription }),
+                ...(payload.role && { role: payload.role })
+              };
+            }
+            return business;
+          });
+        });
+      }
+      // Also trigger a refresh to ensure everything is in sync (debounced)
       debouncedLoadBoth();
     });
 

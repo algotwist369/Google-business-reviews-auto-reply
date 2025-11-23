@@ -232,6 +232,20 @@ export const api = {
       withAuthConfig(token, config)
     );
     return response.data;
+  },
+
+  refreshToken: async (refreshToken) => {
+    const response = await axios.post(`${API_URL}/auth/refresh`, { refreshToken });
+    return response.data;
+  },
+
+  logout: async (token, refreshToken) => {
+    const response = await axios.post(
+      `${API_URL}/auth/logout`,
+      { refreshToken },
+      { headers: getAuthHeaders(token) }
+    );
+    return response.data;
   }
 };
 
